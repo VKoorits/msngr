@@ -79,10 +79,10 @@ def quit(sock, login, token):
     p("QUIT:\t\t" + res)
 
 def send_msg(sock, login, token):
-    msg = input().rstrip()
-    getter = input().rstrip()
-    req  = ":".join(["SEND_MSG", login, token, getter, msg])
-    sock.send( bytes(req, "utf-8") )
+    req  = ":".join(["SEND_MSG", login, token, "getter", "text"])
+    sendData(sock, req, datatype="cmd")
+
+
     res, code = recvData(sock)
     res = res.decode("utf-8")
 
@@ -117,18 +117,26 @@ def test(sock, login, token):
 
     p("TEST:\t\t" + res)
 
-
 ##################################
+
 sock = connect()
 name = "viktor"
 
+
+
 token = login(sock, name)
+print("TOKEN:\t\t" + token)
 test(sock, name, token)
-#send_msg(sock, name, token)
+send_msg(sock, name, token)
 get_new_msg(sock, name, token)
-quit(sock, token, name)
+quit(sock, name, token)
 
 sock.close()
+
+
+
+
+
 
 
 
