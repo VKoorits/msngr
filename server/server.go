@@ -3,31 +3,12 @@ package main
 import (
  "fmt"
  "net"
- "os"
  "strings"
- "math/rand"
  "errors"
  "strconv"
- "encoding/binary"
- "bytes"
  "io"
 )
 
-const (
- CONN_HOST = "localhost"
- CONN_PORT = "5001"
- CONN_TYPE = "tcp"
- //---------------------
- RANDOM_TEXT_SIZE = 16
- TOKEN_SIZE = 8
- DELEMITER = ":"
- OK_ANSWER = "ok"
- OK_CODE = 0
- ERROR_CODE = 42
- SERVER_HEADER_SIZE = 5
- CLIENT_HEADER_SIZE = 4
- ERROR_BEGIN = "?ERROR: "
-)
 
 type feature struct {
   f func (net.Conn, []string)error
@@ -38,29 +19,7 @@ type feature struct {
 var ServerFunctions map[string]feature
 var tokens map[string]string
 var p = fmt.Println
-
-func main() {
-  initServerFunctions()
-  sock, err := net.Listen(CONN_TYPE, CONN_HOST + ":" + CONN_PORT)
-  if err != nil {
-    fmt.Println("Error listening:", err.Error())
-    os.Exit(1)
-  }
-
-  defer sock.Close()
-
-  fmt.Println("Listening on " + CONN_HOST + ":" + CONN_PORT)
-
-  for {
-    conn, err := sock.Accept()
-    if err != nil {
-      fmt.Println("Error accepting: ", err.Error())
-      continue
-    }
-    go workWithClient(conn)
-    //go echo(conn)
-  }
-}
+////////////////////////////////////////////
 
 func echo(conn net.Conn){
   header := []byte("hello")
@@ -79,10 +38,7 @@ func initServerFunctions() {
   ServerFunctions["TEST"] = feature{test, 2, true}
 }
 
-func sendError(conn net.Conn, errText string) {
-  fmt.Println(ERROR_BEGIN + errText)
-  sendData(conn, ERROR_BEGIN + errText, ERROR_CODE )
-}
+
 
 func workWithClient(conn net.Conn) {
   defer conn.Close()
@@ -135,6 +91,7 @@ func workWithClient(conn net.Conn) {
 /////////////////////////////////////////
 
 func checkToken(login string, token string) bool {
+  //TODO mutex or atomic or DB
   return tokens[login] == token
 }
 
@@ -165,12 +122,12 @@ func getToken(conn net.Conn, args []string) error {
 }
 
 func unlogin(conn net.Conn, args []string) error {
-    token := args[0]
+    //token := args[0]
     login := args[1]
 
-    if tokens[login] == token {
-      delete(tokens, login)
-    }
+    //TODO mutex or atomic or DB
+    delete(tokens, login)
+
     return nil
 }
 
@@ -185,71 +142,3 @@ func sendMsg(conn net.Conn, args []string) error {
 func getNewMsg(conn net.Conn, args []string) error {
   return nil
 }
-
-///////////////////////////////////////
-
-func getRandomText(text_len int) string {
-  // without ';' and ':'
-  chars := "QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzzxcvbnm_1234567890!@#$%^&*()_=+,.<>/?[{}]"
-  res := ""
-  for i := 0; i < text_len; i += 1 {
-    num := rand.Intn(len(chars))
-    res += chars[num:num+1]
-  }
-  return res
-}
-
-func sendOkStatus(conn net.Conn) {
-  sendData(conn, OK_ANSWER, OK_CODE)
-}
-
-func sendDataB(conn net.Conn, data []byte, dataSize uint32, code uint8) {
-  header := make([]byte, SERVER_HEADER_SIZE)
-  binary.LittleEndian.PutUint32(header, dataSize)
-  header[4] = code
-  res := append(header, data...)
-  conn.Write(res)
-}
-
-func sendData(conn net.Conn, textData string, code uint8) {
-  dataSize := uint32(len(textData))
-  sendDataB(conn, []byte(textData), dataSize, code)
-}
-
-func recvDataB(conn net.Conn) ([]byte, error) {
-  header := make( []byte, CLIENT_HEADER_SIZE)
-  data_len, err := conn.Read(header)
-
-  if err != nil {
-    return nil, err
-  }
-
-  var dataSize uint32
-  binary.Read(bytes.NewReader(header[0:4]), binary.LittleEndian, &dataSize)
-
-  data := make([]byte, dataSize)
-  data_len, err = conn.Read(data)
-
-  if err != nil {
-    return nil, err
-  }
-  if data_len != int(dataSize) {
-    return nil, errors.New("real and expected data size not equal")
-  }
-
-  return data, nil
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-//

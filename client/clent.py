@@ -123,7 +123,6 @@ sock = connect()
 name = "viktor"
 
 
-
 token = login(sock, name)
 print("TOKEN:\t\t" + token)
 test(sock, name, token)
