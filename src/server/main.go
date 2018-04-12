@@ -3,12 +3,11 @@ package main
 import (
  "fmt"
  "net"
- "os"
 )
 
 const (
  CONN_HOST = "localhost"
- CONN_PORT = "5001"
+ CONN_PORT = "5002"
  CONN_TYPE = "tcp"
  //---------------------
  RANDOM_TEXT_SIZE = 16
@@ -20,6 +19,10 @@ const (
  ERROR_BEGIN = "?ERROR: "
  SERVER_HEADER_SIZE = 5
  CLIENT_HEADER_SIZE = 4
+ DB_NAME = "msngr.db"
+ RSA_KEY_LEN = 1024
+ MAX_LOGIN_LEN = 32
+ MIN_LOGIN_LEN = 4
 )
 
 
@@ -29,10 +32,12 @@ func main() {
   sock, err := net.Listen(CONN_TYPE, CONN_HOST + ":" + CONN_PORT)
   if err != nil {
     fmt.Println("Error listening:", err.Error())
-    os.Exit(1)
+    return
   }
+  db := InitDB(DB_NAME)
 
   defer sock.Close()
+  defer db.Close()
 
   fmt.Println("Listening on " + CONN_HOST + ":" + CONN_PORT)
 
@@ -42,7 +47,7 @@ func main() {
       fmt.Println("Error accepting: ", err.Error())
       continue
     }
-    go workWithClient(conn)
+    go workWithClient(conn, db)
     //go echo(conn)
   }
 }

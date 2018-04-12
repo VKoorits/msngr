@@ -16,6 +16,7 @@ func sendError(conn net.Conn, errText string) {
 }
 
 func getRandomText(text_len int) string {
+  //TODO rand seed
   // without ';' and ':'
   chars := "QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzzxcvbnm_1234567890!@#$%^&*()_=+,.<>/?[{}]"
   res := ""
@@ -30,7 +31,8 @@ func sendOkStatus(conn net.Conn) {
   sendData(conn, OK_ANSWER, OK_CODE)
 }
 
-func sendDataB(conn net.Conn, data []byte, dataSize uint32, code uint8) {
+func sendDataB(conn net.Conn, data []byte, code uint8) {
+  dataSize := uint32(len(data))
   header := make([]byte, SERVER_HEADER_SIZE)
   binary.LittleEndian.PutUint32(header, dataSize)
   header[4] = code
@@ -39,8 +41,7 @@ func sendDataB(conn net.Conn, data []byte, dataSize uint32, code uint8) {
 }
 
 func sendData(conn net.Conn, textData string, code uint8) {
-  dataSize := uint32(len(textData))
-  sendDataB(conn, []byte(textData), dataSize, code)
+  sendDataB(conn, []byte(textData), code)
 }
 
 func recvDataB(conn net.Conn) ([]byte, error) {
