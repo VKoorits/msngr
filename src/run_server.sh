@@ -1,1 +1,2 @@
-go run server/main.go server/server.go server/helper_func.go server/db_init.go
+cd server;
+go run main.go server.go helper_func.go db_init.go crypto.go

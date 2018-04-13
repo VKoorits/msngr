@@ -3,3 +3,4 @@
 ex.go
 ex.py
 *.db
+*.pem
