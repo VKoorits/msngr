@@ -1,6 +1,7 @@
 import socket
 import random
 import os
+import sys
 
 from Crypto.Cipher import PKCS1_OAEP
 from Crypto.PublicKey import RSA
@@ -12,7 +13,8 @@ RANDOM_TEXT_SIZE = 16   # in server_ex.py
 TOKEN_SIZE = 8          # in server_ex.py
 ANSWER_SIZE = 255
 LOGIN = "barakuda"
-DELEMITER = ":"
+DELEMITER = "│"
+MSG_DELEMITER = "|"
 OK_ANSWER = "ok"
 OK_CODE = 0
 SERVER_HEADER_SIZE = 5
@@ -46,7 +48,7 @@ def connect():
 ##################################
 
 def login(sock, login, cipher):
-    req = ":".join(["GET_TKN", login])
+    req = DELEMITER.join(["GET_TKN", login])
     sendData(sock, req, datatype="cmd")
 
     rand_text, code = recvData(sock)
@@ -77,7 +79,7 @@ def login(sock, login, cipher):
     return token
 
 def quit(sock, login, token):
-    req = ":".join(["QUIT", login, token])
+    req = DELEMITER.join(["QUIT", login, token])
     sendData(sock, req, datatype="cmd")
 
     res, code = recvData(sock)
@@ -88,8 +90,8 @@ def quit(sock, login, token):
 
     p("QUIT:\t\t" + res)
 
-def send_msg(sock, login, token):
-    req  = ":".join(["SEND_MSG", login, token, "getter", "text"])
+def send_msg(sock, login, token, getter, msg):
+    req  = DELEMITER.join(["SEND_MSG", login, token, getter, msg])
     sendData(sock, req, datatype="cmd")
 
 
@@ -102,8 +104,13 @@ def send_msg(sock, login, token):
     p("SEND:\t\t" + res)
 
 def get_new_msg(sock, login, token):
-    req = ":".join(["GET_MSG", login, token])
+    req = DELEMITER.join(["GET_MSG", login, token])
     sendData(sock, req, datatype="cmd")
+
+    msgs, code = recvData(sock)
+    if code != OK_CODE:
+        raise ValueError(res)
+    msgs = msgs.decode("utf-8")
 
 
     res, code = recvData(sock)
@@ -111,11 +118,11 @@ def get_new_msg(sock, login, token):
 
     if res != OK_ANSWER or code != OK_CODE:
         raise ValueError(res)
-
+    print_msgs(msgs)
     p("GET_MSG:\t" + res)
 
 def sign_up(sock, login, keyPub):
-    req = ":".join(["SIGN_UP", login,
+    req = DELEMITER.join(["SIGN_UP", login,
             str(keyPub.key.n), str(keyPub.key.e)])
     sendData(sock, req, datatype="cmd")
 
@@ -162,16 +169,31 @@ def get_key(name, sock):
     cipher = PKCS1_OAEP.new(privateKey, hashAlgo=Crypto.Hash.SHA256)
     return pubKey, cipher
 
+
+def print_msgs(msgs):
+    msgs = msgs.split(MSG_DELEMITER)
+    msgs = list(map(lambda x: x.split(DELEMITER), msgs))
+    if len(msgs[0]) !=3:
+        print("No messages")
+    else:
+        for msg in msgs:
+            print("From " + msg[0])
+            print("\t" + msg[1])
+            print("\t" + msg[2].split(" ")[1])
+
 #############################################
 
 
-name = "viktor"
+name = sys.argv[1]
 sock = connect()
 pubKey, cipher = get_key(name, sock)
 
 token = login(sock, name, cipher)
-send_msg(sock, name, token)
 get_new_msg(sock, name, token)
+
+text = input("text: ")
+getter = input("getter: ")
+send_msg(sock, name, token, getter, text)
 quit(sock, name, token)
 
 

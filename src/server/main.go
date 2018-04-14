@@ -12,7 +12,8 @@ const (
  //---------------------
  RANDOM_TEXT_SIZE = 16
  TOKEN_SIZE = 8
- DELEMITER = ":"
+ DELEMITER = "│"
+ MSG_DELIMITER = "|"
  OK_ANSWER = "ok"
  OK_CODE = 0
  ERROR_CODE = 42
@@ -23,7 +24,8 @@ const (
  RSA_KEY_LEN = 1024
  MAX_LOGIN_LEN = 32
  MIN_LOGIN_LEN = 4
- TOKEN_TTL_SECONDS = 60
+ TOKEN_TTL_SECONDS = 300
+ TIME_FORMAT = "2006-01-02 15:04:05 -0700 MST"
 )
 
 

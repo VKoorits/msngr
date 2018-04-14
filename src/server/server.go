@@ -18,8 +18,19 @@ type feature struct {
   need_token bool
 }
 
+type message struct {
+  sender string
+  text string
+  sendingTime string
+}
+
+func (msg message) ToStr() string {
+  return msg.sender + DELEMITER +
+         msg.text + DELEMITER +
+         msg.sendingTime
+}
+
 var ServerFunctions map[string]feature
-var tokens map[string]string
 var p = fmt.Println
 ////////////////////////////////////////////
 
@@ -31,7 +42,6 @@ func echo(conn net.Conn){
 
 func initServerFunctions() {
   ServerFunctions = make( map[string]feature )
-  tokens  = make(map[string]string)
   ServerFunctions["SIGN_UP"] = feature{sign_up, 3, false}
   ServerFunctions["GET_TKN"] = feature{sign_in, 1, false}
   ServerFunctions["QUIT"] = feature{unlogin, 2, true}
@@ -166,9 +176,41 @@ func unlogin(conn net.Conn, args []string, db *sql.DB) error {
 }
 
 func sendMsg(conn net.Conn, args []string, db *sql.DB) error {
-  return nil
+  from := args[0]
+  to := args[2]
+  msg := args[3]
+  err := saveNewMsg(db, from, to, msg)
+  return err
 }
 
 func getNewMsg(conn net.Conn, args []string, db *sql.DB) error {
+  login := args[0]
+  msgs, err := getAllMsg(db, login)
+  if err != nil {
+    return nil
+  }
+
+  allMsg := ""
+  for i, msg :=range msgs {
+    allMsg += msg.ToStr()
+    if i != len(msgs)-1 {
+      allMsg += MSG_DELIMITER
+    }
+  }
+  sendData(conn, allMsg, 0)
   return nil
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+//
