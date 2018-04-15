@@ -5,6 +5,7 @@ import (
   "database/sql"
   "strconv"
   "time"
+  "errors"
 )
 
 func getUserID(login string, db *sql.DB) (int, error) {
@@ -73,16 +74,22 @@ func checkToken(db *sql.DB, login string, token string) bool {
 }
 
 func saveNewMsg(db *sql.DB, from string, to string, msg string) error {
-  //TODO проверить существование получателя
-  req := `INSERT INTO messages(sender, getter, msg, date)
-                    VALUES($1, $2, $3, $4)`
-  _, err := db.Exec(req, from, to, msg, time.Now().Format(TIME_FORMAT))
+  _, err := getUserID(to, db)
+  if err == sql.ErrNoRows {
+    return errors.New("User " + to + "is not registered")
+  } else if err != nil {
+    return err
+  }
+
+  req := `INSERT INTO messages(sender, getter, msg, date, isNew)
+                    VALUES($1, $2, $3, $4, 1)`
+  _, err = db.Exec(req, from, to, msg, time.Now().Format(TIME_FORMAT), 1)
   return err
 }
 
-func getAllMsg(db *sql.DB, login string) ([]message, error) {
-  rows, err := db.Query(`SELECT sender, msg, date
-              FROM messages WHERE getter=$1`, login)
+func getNewMsgFromDB(db *sql.DB, login string) ([]message, error) {
+  rows, err := db.Query(`SELECT msg_id, sender, msg, date
+    FROM messages WHERE getter=$1 AND isNew=1`, login)
   if err != nil {
     return nil, err
   }
@@ -90,17 +97,55 @@ func getAllMsg(db *sql.DB, login string) ([]message, error) {
 
   var msg message
   msgs := make([]message, 0)
+  msgsID := make([]int, 0)
+  var thisID int
   for rows.Next() {
-    err = rows.Scan(&msg.sender, &msg.text, &msg.sendingTime);
+    err = rows.Scan(&thisID, &msg.sender, &msg.text, &msg.sendingTime);
     if err != nil {
       return nil, err
     }
     msgs = append(msgs, msg)
+    msgsID = append(msgsID, thisID)
+  }
+
+  listID := joinIntSLice(msgsID, ",")
+
+  req := `UPDATE messages SET isNew=0 WHERE msg_id IN(` + listID + `)`
+  _, err = db.Exec(req)
+  if err != nil {
+    return nil, err
   }
 
   return msgs, nil
 }
 
+func findUsernamesDB(db *sql.DB, loginPart string) (string, error) {
+  req := `SELECT login FROM users
+          WHERE INSTR(login, $1)
+          ORDER BY INSTR(login, $1)`
+  rows, err := db.Query(req, loginPart)
+  if err != nil {
+    return "", err
+  }
+  defer rows.Close()
+
+  usernames := ""
+  var oneLogin string
+  for rows.Next() {
+    err = rows.Scan(&oneLogin);
+    if err != nil {
+      return "", err
+    }
+    usernames += oneLogin + DELEMITER
+  }
+
+  slice := []rune(usernames)
+  if len(slice) != 0 {
+    slice = slice[:len(slice) - 1]
+  }
+  return string(slice), nil
+
+}
 
 func InitDB(filepath string) *sql.DB {
 	db, err := sql.Open("sqlite3", filepath)
@@ -129,7 +174,8 @@ func InitDB(filepath string) *sql.DB {
             sender VARCHAR(32) NOT NULL,
             getter VARCHAR(32) NOT NULL,
             msg TEXT NOT NULL,
-            date DATATIME NOT NULL )`
+            date DATATIME NOT NULL,
+            isNew TINYINT(1) NOT NULL)`
   _, err = db.Exec(req)
   if err != nil { panic(err) }
 

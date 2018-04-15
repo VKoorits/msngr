@@ -7,6 +7,7 @@ import (
   "encoding/binary"
   "errors"
   "bytes"
+  "strconv"
 )
 
 
@@ -27,6 +28,17 @@ func getRandomText(text_len int) string {
   return res
 }
 
+func joinIntSLice(list []int, dilemitre string) string {
+  res := ""
+  for i, num := range list {
+    res += strconv.Itoa(num)
+    if i < len(list) - 1 {
+      res += ","
+    }
+  }
+  return res
+}
+
 func sendOkStatus(conn net.Conn) {
   sendData(conn, OK_ANSWER, OK_CODE)
 }
@@ -41,6 +53,7 @@ func sendDataB(conn net.Conn, data []byte, code uint8) {
 }
 
 func sendData(conn net.Conn, textData string, code uint8) {
+  p("SEND: " + textData)
   sendDataB(conn, []byte(textData), code)
 }
 

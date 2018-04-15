@@ -47,6 +47,7 @@ func initServerFunctions() {
   ServerFunctions["QUIT"] = feature{unlogin, 2, true}
   ServerFunctions["SEND_MSG"] = feature{sendMsg, 4, true}
   ServerFunctions["GET_MSG"] = feature{getNewMsg, 2, true}
+  ServerFunctions["FIND_USR"] = feature{findUsernames, 3, true}
 }
 
 func workWithClient(conn net.Conn, db *sql.DB) {
@@ -67,6 +68,8 @@ func workWithClient(conn net.Conn, db *sql.DB) {
     args := req[1:]
 
     ficha, ok := ServerFunctions[cmd]
+
+
     if !ok {
       sendError(conn, "wrong request cmd: '" + cmd + "'")
       continue
@@ -84,7 +87,9 @@ func workWithClient(conn net.Conn, db *sql.DB) {
         continue
       }
     }
+
     err = ficha.f(conn, args, db)
+
 
     if err != nil {
       if err == io.EOF {
@@ -185,22 +190,32 @@ func sendMsg(conn net.Conn, args []string, db *sql.DB) error {
 
 func getNewMsg(conn net.Conn, args []string, db *sql.DB) error {
   login := args[0]
-  msgs, err := getAllMsg(db, login)
+  msgs, err := getNewMsgFromDB(db, login)
   if err != nil {
     return nil
   }
 
-  allMsg := ""
+  newMsg := ""
   for i, msg :=range msgs {
-    allMsg += msg.ToStr()
+    newMsg += msg.ToStr()
     if i != len(msgs)-1 {
-      allMsg += MSG_DELIMITER
+      newMsg += MSG_DELIMITER
     }
   }
-  sendData(conn, allMsg, 0)
+  sendData(conn, newMsg, 0)
   return nil
 }
 
+func findUsernames(conn net.Conn, args []string, db *sql.DB) error {
+  loginPart := args[2]
+  usernames, err := findUsernamesDB(db, loginPart)
+  if err != nil {
+    return err
+  }
+  sendData(conn, usernames, OK_CODE)
+
+  return nil
+}
 
 
 

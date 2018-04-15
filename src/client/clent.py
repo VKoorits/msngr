@@ -135,6 +135,24 @@ def sign_up(sock, login, keyPub):
 
     p("SIGN_UP:\t" + res)
 
+def  find_users(sock, login, token, login_part):
+    req = DELEMITER.join(["FIND_USR", login, token, login_part])
+    sendData(sock, req, datatype="cmd")
+
+
+    users, code = recvData(sock)
+    if code != OK_CODE:
+        raise ValueError(users)
+    users = users.decode("utf-8")
+
+
+    res, code = recvData(sock)
+    res = res.decode("utf-8")
+
+    if res != OK_ANSWER or code != OK_CODE:
+        raise ValueError(res)
+    print_users(users, login_part)
+    p("FIND:\t\t" + res)
 ##################################
 
 def get_key(name, sock):
@@ -174,12 +192,23 @@ def print_msgs(msgs):
     msgs = msgs.split(MSG_DELEMITER)
     msgs = list(map(lambda x: x.split(DELEMITER), msgs))
     if len(msgs[0]) !=3:
-        print("No messages")
+        print("No new messages")
     else:
         for msg in msgs:
             print("From " + msg[0])
             print("\t" + msg[1])
             print("\t" + msg[2].split(" ")[1])
+
+def print_users(users, request):
+    users = users.split(DELEMITER)
+    if users[0] != '':
+        i = 1
+        for user in users:
+            print(str(i) + "\t:" + user)
+            i += 1
+    else:
+        print("not found users request '" + request + "'")
+
 
 #############################################
 
@@ -191,10 +220,13 @@ pubKey, cipher = get_key(name, sock)
 token = login(sock, name, cipher)
 get_new_msg(sock, name, token)
 
-text = input("text: ")
-getter = input("getter: ")
-send_msg(sock, name, token, getter, text)
+#text = input("text: ")
+#getter = input("getter: ")
+#send_msg(sock, name, token, getter, text)
+find_users(sock, name, token, "ya")
 quit(sock, name, token)
+
+
 
 
 sock.close()
