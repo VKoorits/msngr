@@ -11,9 +11,13 @@ import (
 )
 
 
-func sendError(conn net.Conn, errText string) {
+func sendError(conn net.Conn, sErr serverError) {
+  errText := sErr.Err.Error()
   fmt.Println(ERROR_BEGIN + errText)
-  sendData(conn, ERROR_BEGIN + errText, ERROR_CODE )
+  if sErr.Code == SERVER_INNER_ERR {
+    errText = "server inner error"
+  }
+  sendData(conn, errText, sErr.Code )
 }
 
 func getRandomText(text_len int) string {
@@ -40,7 +44,7 @@ func joinIntSLice(list []int, dilemitre string) string {
 }
 
 func sendOkStatus(conn net.Conn) {
-  sendData(conn, OK_ANSWER, OK_CODE)
+  sendData(conn, OK_ANSWER, uint8(OK_CODE))
 }
 
 func sendDataB(conn net.Conn, data []byte, code uint8) {
@@ -53,7 +57,6 @@ func sendDataB(conn net.Conn, data []byte, code uint8) {
 }
 
 func sendData(conn net.Conn, textData string, code uint8) {
-  p("SEND: " + textData)
   sendDataB(conn, []byte(textData), code)
 }
 

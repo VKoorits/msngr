@@ -9,17 +9,22 @@ from Crypto.PublicKey import RSA
 import Crypto.Hash
 from base64 import b64decode
 
+
+SERVER_ADDR = 'localhost'
+SERVER_PORT = 5002
 RANDOM_TEXT_SIZE = 16   # in server_ex.py
 TOKEN_SIZE = 8          # in server_ex.py
 ANSWER_SIZE = 255
-LOGIN = "barakuda"
 DELEMITER = "│"
 MSG_DELEMITER = "|"
 OK_ANSWER = "ok"
-OK_CODE = 0
 SERVER_HEADER_SIZE = 5
 CLIENT_HEADER_SIZE = 4
 RSA_KEY_LEN = 1024
+########################################
+OK_CODE = 0
+WRONG_DECRYPTION = 255
+
 
 p = print
 # p     - debug
@@ -41,8 +46,14 @@ def sendData(sock, data, datatype):
     sendDataB(sock, bytes(data, "utf-8"), datatype)
 
 def connect():
-    sock = socket.socket()
-    sock.connect(('localhost', 5002))
+    sock = None
+    try:
+        sock = socket.socket()
+        sock.connect((SERVER_ADDR, SERVER_PORT))
+    except:
+        print("Server " + SERVER_ADDR + ":" +  str(SERVER_PORT) + "is not available")
+        print("Please try again later")
+        sock = None
     return sock
 
 ##################################
@@ -53,30 +64,29 @@ def login(sock, login, cipher):
 
     rand_text, code = recvData(sock)
     if code != OK_CODE:
-        p(rand_text, code)
-        return
+        return rand_text, code
 
     # DECRYPT
-    open_text = cipher.decrypt(rand_text)
+    try:
+        open_text = cipher.decrypt(rand_text)
+    except ValueError as e:
+        return "Decyptyon error", WRONG_DECRYPTION
 
     sendDataB(sock, open_text, datatype="data")
 
 
     token, code = recvData(sock)
     token = token.decode("utf-8")
-    if code != OK_CODE:
-        p(token, code)
-        return
+    if len(token) != TOKEN_SIZE  or  code != OK_CODE:
+        return token, code
 
-    if token == '':
-        raise ValueError("INIT ERROR, empty token")
 
     res, code = recvData(sock)
     res = res.decode("utf-8")
     if res != OK_ANSWER or code != OK_CODE:
-        raise ValueError(res)
-    p("LOGIN:\t\t" + res)
-    return token
+        return res, code
+
+    return token, OK_CODE
 
 def quit(sock, login, token):
     req = DELEMITER.join(["QUIT", login, token])
@@ -99,9 +109,9 @@ def send_msg(sock, login, token, getter, msg):
     res = res.decode("utf-8")
 
     if res != OK_ANSWER or code != OK_CODE:
-        raise ValueError(res)
+        return res, code
+    return "", OK_CODE
 
-    p("SEND:\t\t" + res)
 
 def get_new_msg(sock, login, token):
     req = DELEMITER.join(["GET_MSG", login, token])
@@ -109,7 +119,7 @@ def get_new_msg(sock, login, token):
 
     msgs, code = recvData(sock)
     if code != OK_CODE:
-        raise ValueError(res)
+        return msgs, code
     msgs = msgs.decode("utf-8")
 
 
@@ -117,9 +127,9 @@ def get_new_msg(sock, login, token):
     res = res.decode("utf-8")
 
     if res != OK_ANSWER or code != OK_CODE:
-        raise ValueError(res)
-    print_msgs(msgs)
-    p("GET_MSG:\t" + res)
+        return res, code
+    return msgs, code
+
 
 def sign_up(sock, login, keyPub):
     req = DELEMITER.join(["SIGN_UP", login,
@@ -127,22 +137,22 @@ def sign_up(sock, login, keyPub):
     sendData(sock, req, datatype="cmd")
 
 
-    res, code = recvData(sock)
-    res = res.decode("utf-8")
+    answer, code = recvData(sock)
+    answer = answer.decode("utf-8")
 
-    if res != OK_ANSWER or code != OK_CODE:
-        raise ValueError(res)
+    if answer != OK_ANSWER or code != OK_CODE:
+        return answer, code
 
-    p("SIGN_UP:\t" + res)
+    return "", OK_CODE
 
-def  find_users(sock, login, token, login_part):
+def find_users(sock, login, token, login_part):
     req = DELEMITER.join(["FIND_USR", login, token, login_part])
     sendData(sock, req, datatype="cmd")
 
 
     users, code = recvData(sock)
     if code != OK_CODE:
-        raise ValueError(users)
+        return users, code
     users = users.decode("utf-8")
 
 
@@ -150,39 +160,46 @@ def  find_users(sock, login, token, login_part):
     res = res.decode("utf-8")
 
     if res != OK_ANSWER or code != OK_CODE:
-        raise ValueError(res)
-    print_users(users, login_part)
-    p("FIND:\t\t" + res)
+        return res, code
+    return users, OK_CODE
+
 ##################################
+def error_worker(errText, code):
+    if code != OK_CODE:
+        print("ERROR(" + str(code) + "): ", end="")
+        print(errText)
+    return code
+
 
 def get_key(name, sock):
+    # read or generate key
     fileName = name + ".pem"
     privateKey, pubKey = 0, 0
-    newKey = False #?!
+    code = OK_CODE
     try:
+        #read
         keyText = open(fileName, 'r').read()
         privateKey = RSA.importKey(keyText)
         pubKey = privateKey.publickey()
-    except:
+    except FileNotFoundError as e:
+        #generate
         privateKey = RSA.generate(RSA_KEY_LEN)
         pubKey = privateKey.publickey()
+        # save key
         keyStr = privateKey.exportKey("PEM").decode("ascii")
         with open(fileName, "w") as f:
             f.write(keyStr)
-        newKey = True
 
-    if newKey:
-        try:
-            sign_up(sock, name, pubKey)
-        except ValueError as e:
-            if str(e) != "?ERROR: login " + name + " is used":
-                print("Registration error:")
-                print("\t"+ str(e))
-            else:
-                print("Where is your key?!")
-                path = os.path.join(os.path.abspath(os.path.dirname(__file__)), filename)
-                os.remove(path)
-            os._exit(0)
+        if input("Do yo want to register[Y/n]? ") == "Y":
+            #registered
+            answer, code = sign_up(sock, name, pubKey)
+            code = error_worker(answer, code)
+            if code == OK_CODE:
+                print(name + " was sucsessfuly registered")
+        else:
+            #delete key
+            os.remove(fileName)
+            return None, None
 
     cipher = PKCS1_OAEP.new(privateKey, hashAlgo=Crypto.Hash.SHA256)
     return pubKey, cipher
@@ -209,14 +226,107 @@ def print_users(users, request):
     else:
         print("not found users request '" + request + "'")
 
+def undefined_behavior():
+    print("Something went wrong.")
+    print("You can send the report to the address koorits.viktor@yandex.ru")
 
+def get_choose():
+    print("hello, now you can:")
+    print("\t1)get new messages")
+    print("\t2)send message")
+    print("\t3)find users")
+    print("\t4)quit")
+
+    choose = 0
+    while True:
+        try:
+            choose = int(input())
+        except:
+            pass
+        if choose not in range(1,5):
+            print("enter number between 1 and 4")
+        else:
+            return choose
 #############################################
+def interface_get_msg(sock, name, token):
+    msgs, code = get_new_msg(sock, name, token)
+
+    code = error_worker(msgs, code)
+    if code != OK_CODE:
+        undefined_behavior()
+        return code
+
+    print_msgs(msgs)
+    return OK_CODE
+
+def interface_send_msg(sock, name, token):
+    text = input("text: ")
+    getter = input("getter: ")
+    answer, code = send_msg(sock, name, token, getter, text)
+
+    code = error_worker(answer, code)
+    if code != OK_CODE:
+        undefined_behavior()
+        return code
+    return OK_CODE
+
+def interface_find_users(sock, name, token):
+    loginPart = input("login or part of login: ")
+    users, code = find_users(sock, name, token, loginPart)
+
+    code = error_worker(users, code)
+    if code != OK_CODE:
+        undefined_behavior()
+        return code
+
+    print_users(users, loginPart)
+    return OK_CODE
+
+def interface_quit(sock, name, token):
+    print("QUIT")
+    os._exit(0)
+#############################################
+def interface():
+    sock = connect()
+    if sock is None:
+        return
+
+    name = input("Enter your login: ")
+    pubKey, cipher = get_key(name, sock)
+    if pubKey is None or cipher is None:
+        return
+
+    token, code = login(sock, name, cipher)
+    code = error_worker(token, code)
+    if code != OK_CODE:
+        undefined_behavior()
+        return
+
+    clientFunctions = [None,
+                        interface_get_msg,
+                        interface_send_msg,
+                        interface_find_users,
+                        interface_quit]
+    while True:
+        choose = get_choose()
+        code = clientFunctions[choose](sock, name, token)
+        if code != OK_CODE:
+            break
 
 
-name = sys.argv[1]
+
+
+
+interface()
+
+
+
+"""
 sock = connect()
+name = sys.argv[1]
 pubKey, cipher = get_key(name, sock)
 
+input()
 token = login(sock, name, cipher)
 get_new_msg(sock, name, token)
 
@@ -230,8 +340,7 @@ quit(sock, name, token)
 
 
 sock.close()
-
-
+"""
 
 
 

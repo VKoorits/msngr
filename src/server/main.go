@@ -6,26 +6,42 @@ import (
 )
 
 const (
- CONN_HOST = "localhost"
- CONN_PORT = "5002"
- CONN_TYPE = "tcp"
- //---------------------
- RANDOM_TEXT_SIZE = 16
- TOKEN_SIZE = 8
- DELEMITER = "│"
- MSG_DELIMITER = "|"
- OK_ANSWER = "ok"
- OK_CODE = 0
- ERROR_CODE = 42
- ERROR_BEGIN = "?ERROR: "
- SERVER_HEADER_SIZE = 5
- CLIENT_HEADER_SIZE = 4
- DB_NAME = "msngr.db"
- RSA_KEY_LEN = 1024
- MAX_LOGIN_LEN = 32
- MIN_LOGIN_LEN = 4
- TOKEN_TTL_SECONDS = 300
- TIME_FORMAT = "2006-01-02 15:04:05 -0700 MST"
+  CONN_HOST = "localhost"
+  CONN_PORT = "5002"
+  CONN_TYPE = "tcp"
+//---------------------
+  RANDOM_TEXT_SIZE = 16
+  TOKEN_SIZE = 8
+  DELEMITER = "│"
+  MSG_DELIMITER = "|"
+  SERVER_HEADER_SIZE = 5
+  CLIENT_HEADER_SIZE = 4
+  DB_NAME = "msngr.db"
+  RSA_KEY_LEN = 1024
+  MAX_LOGIN_LEN = 32
+  MIN_LOGIN_LEN = 4
+  TOKEN_TTL_SECONDS = 300
+  TIME_FORMAT = "2006-01-02 15:04:05 -0700 MST"
+//-------------------------------------------
+  OK_ANSWER = "ok"
+  ERROR_BEGIN = "ERROR: "
+// ERROR CODES
+  OK_CODE = 0                                 // cmd sucsessfuly finished
+  SERVER_INNER_ERR = 1                        // not depends of client
+  UNDEINED_CMD = 2                            // undefined server command
+  WRONG_ARGS_CNT = 3                          //
+  WRONG_TOKEN = 4
+  WRONG_DATA = 5
+  WRONG_PUBLIC_KEY_MODULE = 6                 // error tranlate public key module to bigInt
+  WRONG_PUBLIC_KEY_SIZE = 7
+  WRONG_KEY_EXPONENT = 8                      // error tranlate public key exponent to int
+  LOGIN_IS_USED = 9
+  UNDEFINED_USER = 10
+  WRONG_RANDOM_TEXT = 11                      // user can`t decrypt text correctly. sign in error
+  GETTER_NOT_REGISTERED = 12                  // no getter with required login
+
+
+  ERROR_CODE = 42
 )
 
 

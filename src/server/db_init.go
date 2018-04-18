@@ -73,18 +73,19 @@ func checkToken(db *sql.DB, login string, token string) bool {
   return tokenFromDB == token
 }
 
-func saveNewMsg(db *sql.DB, from string, to string, msg string) error {
+func saveNewMsg(db *sql.DB, from string, to string, msg string) serverError {
   _, err := getUserID(to, db)
   if err == sql.ErrNoRows {
-    return errors.New("User " + to + "is not registered")
+    return serverError{ errors.New("User " + to + " is not registered"),
+                        GETTER_NOT_REGISTERED }
   } else if err != nil {
-    return err
+    return serverError{err, SERVER_INNER_ERR}
   }
 
   req := `INSERT INTO messages(sender, getter, msg, date, isNew)
                     VALUES($1, $2, $3, $4, 1)`
   _, err = db.Exec(req, from, to, msg, time.Now().Format(TIME_FORMAT), 1)
-  return err
+  return serverError{nil, OK_CODE}
 }
 
 func getNewMsgFromDB(db *sql.DB, login string) ([]message, error) {
@@ -138,6 +139,8 @@ func findUsernamesDB(db *sql.DB, loginPart string) (string, error) {
     }
     usernames += oneLogin + DELEMITER
   }
+
+
 
   slice := []rune(usernames)
   if len(slice) != 0 {
