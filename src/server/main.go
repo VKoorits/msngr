@@ -22,6 +22,7 @@ const (
   MIN_LOGIN_LEN = 4
   TOKEN_TTL_SECONDS = 300
   TIME_FORMAT = "2006-01-02 15:04:05 -0700 MST"
+  CHAN_NEW_MESSAGE_SIZE = 4
 //-------------------------------------------
   OK_ANSWER = "ok"
   ERROR_BEGIN = "ERROR: "
@@ -40,8 +41,6 @@ const (
   WRONG_RANDOM_TEXT = 11                      // user can`t decrypt text correctly. sign in error
   GETTER_NOT_REGISTERED = 12                  // no getter with required login
 
-
-  ERROR_CODE = 42
 )
 
 

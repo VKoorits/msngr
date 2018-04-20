@@ -83,3 +83,19 @@ func recvDataB(conn net.Conn) ([]byte, error) {
 
   return data, nil
 }
+
+// request from client for execute command
+type rowCmdReq struct {
+  data []byte
+  err error
+}
+// for "select{...}"
+func recvDataCmd(conn net.Conn) chan rowCmdReq {
+  ch := make(chan rowCmdReq, 1)
+  go func(){
+    data, err := recvDataB(conn)
+    req := rowCmdReq{data, err}
+    ch <- req
+  }()
+  return ch
+}

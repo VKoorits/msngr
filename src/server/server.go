@@ -9,12 +9,13 @@ import (
  "io"
  "database/sql"
  "math/big"
+ "time"
 )
 
 
 // command whic server can execute
 type feature struct {
-  f func (net.Conn, []string, *sql.DB)serverError
+  f func (net.Conn, []string, *sql.DB, *chan message)serverError
   cnt_args int
   need_token bool
 }
@@ -38,6 +39,8 @@ func (msg message) ToStr() string {
 
 var ServerFunctions map[string]feature
 var NoErrors serverError
+// NOTE: you need special map for parallel work
+var Online map[string]*chan message
 // alias only for debug
 var p = fmt.Println
 ////////////////////////////////////////////
@@ -52,6 +55,7 @@ func echo(conn net.Conn){
 //init some global vars
 func initServerFunctions() {
   NoErrors = serverError{nil, OK_CODE}
+  Online = make(map[string]*chan message)
   // commands which server can  execute
   ServerFunctions = make( map[string]feature )
   ServerFunctions["SIGN_UP"] = feature{sign_up, 3, false}
@@ -62,74 +66,80 @@ func initServerFunctions() {
   ServerFunctions["FIND_USR"] = feature{findUsernames, 3, true}
 }
 
-// function which work with connection in new gorutine
+/// function which work with connection in new gorutine
 func workWithClient(conn net.Conn, db *sql.DB) {
   defer conn.Close()
   fmt.Println("connected")
+  newMsgCh := make(chan message, CHAN_NEW_MESSAGE_SIZE)
+  //cmdChan := make(chan rowCmdReq, 1)
 
-  // read command from user
+  LISTEN_LOOP:
   for {
-    data, err := recvDataB(conn)
-    if err != nil {
-      if err == io.EOF {
-        break
-      }
-      // NOTE: interesting, what reading error besides EOF
-      //?/sendError(conn, err.Error())
-      sendError(conn, serverError{err, SERVER_INNER_ERR})
-      continue
-    }
 
-    // get command and args for it
-    req := strings.Split(string(data[:len(data)]), DELEMITER)
-    cmd := req[0]
-    args := req[1:]
+    select {
+    /// read command from user
+      case req := <-recvDataCmd(conn):
+        sErr := executeCommand(conn, db, req.data, req.err, &newMsgCh)
+        if sErr.Err != nil {
+          if sErr.Err == io.EOF {
+            break LISTEN_LOOP
+          }
+          sendError(conn, sErr)
+        }
+      case msg := <- newMsgCh:
+        sendData(conn, msg.ToStr(), OK_CODE)
+    } // end select
+  } // end for
+}
 
-    // ficha - is function which is called for this command
-    ficha, ok := ServerFunctions[cmd]
 
-    // check  params for call feature
-    if !ok {
-      sErr := serverError{errors.New("undefined cmd: '" + cmd + "'"), UNDEINED_CMD}
-      sendError(conn, sErr)
-      continue
-    }
+func executeCommand(conn net.Conn, db *sql.DB, data []byte,
+                            err error, newMsgCh *chan message) serverError {
+  if err != nil {
+    return serverError{err, SERVER_INNER_ERR}
+  }
 
-    if len(args) != ficha.cnt_args {
-      sErr := serverError{errors.New("wrong count arguments for " + cmd + ". Expected " +  strconv.Itoa(ficha.cnt_args) +  ", got " + strconv.Itoa(len(args)) ),
-                            WRONG_ARGS_CNT}
-      sendError(conn,  sErr)
-      continue
-    }
-    if ficha.need_token {
-      okToken := checkToken(db, args[0], args[1])
-      if !okToken {
-        sErr := serverError{errors.New("wrong token"), WRONG_TOKEN}
-        sendError(conn, sErr)
-        continue
-      }
-    }
+  // get command and args for it
+  req := strings.Split(string(data[:len(data)]), DELEMITER)
+  cmd := req[0]
+  args := req[1:]
 
-    // Run comand
-    sErr := ficha.f(conn, args, db)
+  // ficha - is function which is called for this command
+  ficha, ok := ServerFunctions[cmd]
 
-    if sErr.Err != nil {
-      if sErr.Err == io.EOF {
-        break
-      }
-      sendError(conn, sErr)
-    } else {
-      // command sucsessfuly done
-      sendOkStatus(conn)
+  // check  params for call feature
+  if !ok {
+    sErr := serverError{errors.New("undefined cmd: '" + cmd + "'"), UNDEINED_CMD}
+    return sErr
+  }
+  if len(args) != ficha.cnt_args {
+    sErr := serverError{errors.New("wrong count arguments for " + cmd + ". Expected " +  strconv.Itoa(ficha.cnt_args) +  ", got " + strconv.Itoa(len(args)) ),
+                          WRONG_ARGS_CNT}
+    return sErr
+  }
+  if ficha.need_token {
+    okToken := checkToken(db, args[0], args[1])
+    if !okToken {
+      sErr := serverError{errors.New("wrong token"), WRONG_TOKEN}
+      return sErr
     }
   }
+
+  // Run comand
+  sErr := ficha.f(conn, args, db, newMsgCh)
+
+  if sErr.Err != nil {
+    return sErr
+  } else {
+    // command sucsessfuly done
+    sendOkStatus(conn)
+  }
+  return NoErrors
 }
-///////////////////////////////////////////////
-//YOU FINISHED HERE <-------------------------/
-///////////////////////////////////////////////
+
 
 // register new user by rsa key
-func sign_up(conn net.Conn, args []string, db *sql.DB) serverError {
+func sign_up(conn net.Conn, args []string, db *sql.DB, newMsgCh *chan message) serverError {
   login := args[0]
   // check this login
   // login must be free
@@ -171,7 +181,7 @@ func sign_up(conn net.Conn, args []string, db *sql.DB) serverError {
 }
 
 // sign in by rsa key
-func sign_in(conn net.Conn, args []string, db *sql.DB) serverError {
+func sign_in(conn net.Conn, args []string, db *sql.DB, newMsgCh *chan message) serverError {
   inText := getRandomText(RANDOM_TEXT_SIZE)
   login := args[0]
 
@@ -204,8 +214,13 @@ func sign_in(conn net.Conn, args []string, db *sql.DB) serverError {
   // generate token for user
   bToken := []byte( getRandomText(TOKEN_SIZE) )
 
+
   sendDataB(conn, bToken, OK_CODE)
   err = saveToken(db, login, string(bToken))
+
+  // new active user on line
+  // chanel for new messages
+  Online[login] = newMsgCh
 
   if err != nil {
     return serverError{err, SERVER_INNER_ERR}
@@ -214,9 +229,11 @@ func sign_in(conn net.Conn, args []string, db *sql.DB) serverError {
   return NoErrors
 }
 
-func unlogin(conn net.Conn, args []string, db *sql.DB) serverError {
+func unlogin(conn net.Conn, args []string, db *sql.DB, newMsgCh *chan message) serverError {
     login := args[0]
     token := args[1]
+
+    delete(Online, login)
     err := deleteToken(db, login, token)
 
     if err != nil {
@@ -225,18 +242,28 @@ func unlogin(conn net.Conn, args []string, db *sql.DB) serverError {
     return NoErrors
 }
 
-// TODO write message to getter connetion if it open
-func sendMsg(conn net.Conn, args []string, db *sql.DB) serverError {
+
+func sendMsg(conn net.Conn, args []string, db *sql.DB, newMsgCh *chan message) serverError {
   from := args[0]
   to := args[2]
   msg := args[3]
   sErr := saveNewMsg(db, from, to, msg)
 
+
+  // if getter is online, send message in his chanel
+  if getterChan, ok := Online[to]; ok {
+    select{
+      case *getterChan <-message{from, msg, time.Now().Format(TIME_FORMAT)}:
+      default:   // if getter`s chanel is full
+        p(to + "`s chan is full")
+    }
+  }
+
   return sErr
 }
 
 // get unread messages
-func getNewMsg(conn net.Conn, args []string, db *sql.DB) serverError {
+func getNewMsg(conn net.Conn, args []string, db *sql.DB, newMsgCh *chan message) serverError {
   login := args[0]
   msgs, err := getNewMsgFromDB(db, login)
   if err != nil {
@@ -257,7 +284,7 @@ func getNewMsg(conn net.Conn, args []string, db *sql.DB) serverError {
 
 // find usernames by part of login
 // Sorted by position this part in login
-func findUsernames(conn net.Conn, args []string, db *sql.DB) serverError {
+func findUsernames(conn net.Conn, args []string, db *sql.DB, newMsgCh *chan message) serverError {
   loginPart := args[2]
   usernames, err := findUsernamesDB(db, loginPart)
   if err != nil {

@@ -236,6 +236,7 @@ def get_choose():
     print("\t2)send message")
     print("\t3)find users")
     print("\t4)quit")
+    print("\t5)listen")
 
     choose = 0
     while True:
@@ -243,8 +244,8 @@ def get_choose():
             choose = int(input())
         except:
             pass
-        if choose not in range(1,5):
-            print("enter number between 1 and 4")
+        if choose not in range(1,6):
+            print("enter number between 1 and 5")
         else:
             return choose
 #############################################
@@ -283,8 +284,17 @@ def interface_find_users(sock, name, token):
     return OK_CODE
 
 def interface_quit(sock, name, token):
-    print("QUIT")
-    os._exit(0)
+    return -1
+
+def interface_listen(sock, name, token):
+    while True:
+        data, code = recvData(sock)
+        data = data.decode("utf-8")
+        print_msgs(data)
+    return OK_CODE
+
+
+
 #############################################
 def interface():
     sock = connect()
@@ -306,7 +316,8 @@ def interface():
                         interface_get_msg,
                         interface_send_msg,
                         interface_find_users,
-                        interface_quit]
+                        interface_quit,
+                        interface_listen]
     while True:
         choose = get_choose()
         code = clientFunctions[choose](sock, name, token)
@@ -318,7 +329,6 @@ def interface():
 
 
 interface()
-
 
 
 """

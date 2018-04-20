@@ -140,8 +140,6 @@ func findUsernamesDB(db *sql.DB, loginPart string) (string, error) {
     usernames += oneLogin + DELEMITER
   }
 
-
-
   slice := []rune(usernames)
   if len(slice) != 0 {
     slice = slice[:len(slice) - 1]
