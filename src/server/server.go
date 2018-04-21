@@ -71,11 +71,9 @@ func workWithClient(conn net.Conn, db *sql.DB) {
   defer conn.Close()
   fmt.Println("connected")
   newMsgCh := make(chan message, CHAN_NEW_MESSAGE_SIZE)
-  //cmdChan := make(chan rowCmdReq, 1)
 
   LISTEN_LOOP:
   for {
-
     select {
     /// read command from user
       case req := <-recvDataCmd(conn):

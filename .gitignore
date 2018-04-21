@@ -4,3 +4,4 @@ ex.go
 ex.py
 *.db
 *.pem
+src/client/__pycache__/*

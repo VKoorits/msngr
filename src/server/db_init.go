@@ -145,7 +145,6 @@ func findUsernamesDB(db *sql.DB, loginPart string) (string, error) {
     slice = slice[:len(slice) - 1]
   }
   return string(slice), nil
-
 }
 
 func InitDB(filepath string) *sql.DB {

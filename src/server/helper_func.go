@@ -22,7 +22,7 @@ func sendError(conn net.Conn, sErr serverError) {
 
 func getRandomText(text_len int) string {
   //TODO rand seed
-  // without ';' and ':'
+  // without DELIMITERS
   chars := "QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzzxcvbnm_1234567890!@#$%^&*()_=+,.<>/?[{}]"
   res := ""
   for i := 0; i < text_len; i += 1 {
